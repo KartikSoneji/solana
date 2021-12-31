@@ -101,29 +101,34 @@ async fn compare_blocks(starting_slot: Slot, limit: usize, cred_path: Option<Str
     
     let bigtable_def = solana_storage_bigtable::LedgerStorage::new(false, None, None)
     .await
-    .map_err(|err| format!("failed to connect to standard bigtable: {:?}", err))?;
+    .map_err(|err| format!("failed to connect to default bigtable: {:?}", err))?;
 
     let slots_def = bigtable_def.get_confirmed_blocks(starting_slot, limit).await?;
-    println!("{:?}", slots_def);
-    println!("standard bigtable {} blocks found", slots_def.len());
+    println!("default bigtable {} blocks found", slots_def.len());
 
 
     let bigtable_std = solana_storage_bigtable::LedgerStorage::new(false, None, cred_path)
         .await
-        .map_err(|err| format!("failed to connect to bigtable used to be compared with standard bigtable: {:?}", err))?;
+        .map_err(|err| format!("failed to connect to standard bigtable: {:?}", err))?;
     
         let slots_std = bigtable_std.get_confirmed_blocks(starting_slot, limit).await?;
-    println!("{:?}", slots_std);
-    println!("bigtable used to compare with {} blocks found", slots_std.len());
+    println!("standard bigtable {} blocks found", slots_std.len());
     
     let mut missing_block = HashSet::new();
+    let mut slots_def = slots_def;
     for slot in slots_std {
-        if !slots_def.contains(&slot) {
+        for (i, e) in slots_def.iter().enumerate() {
+            if *e > slot { //for speed up comparision
+               missing_block.insert(slot);
+               break;
+            } else if slot == *e { 
+                slots_def.remove(i);
+                break;
+            }    
             missing_block.insert(slot);
         }
     }
-    println!("missing blocks:{:?}", missing_block);
-
+    println!("missing blocks:{:?}", missing_block);  
     Ok(())
 }
 
