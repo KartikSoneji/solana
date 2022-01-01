@@ -20,7 +20,6 @@ use {
         process::exit,
         result::Result,
         sync::{atomic::AtomicBool, Arc},
-        collections::HashSet,
     },
 };
 
@@ -93,6 +92,23 @@ async fn blocks(starting_slot: Slot, limit: usize) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
+fn missing_blocks(slots_std: &Vec<Slot>, slot_cmp: &Vec<Slot> ) -> Vec<Slot>{
+    let mut missing_blocks = Vec::new();
+    let mut slot_cmp = slot_cmp.clone();
+    for slot in slots_std {
+        for (i, e) in slot_cmp.iter().enumerate() {
+            if *e > *slot {
+                missing_blocks.push(slot.clone());
+                break;
+            } else if *slot == *e {
+                slot_cmp.remove(i); 
+                break;
+            }  
+        }
+    }
+    missing_blocks
+}
+
 async fn compare_blocks(starting_slot: Slot, limit: usize, cred_path: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(credential) = &cred_path {
@@ -106,29 +122,16 @@ async fn compare_blocks(starting_slot: Slot, limit: usize, cred_path: Option<Str
     let slots_def = bigtable_def.get_confirmed_blocks(starting_slot, limit).await?;
     println!("default bigtable {} blocks found", slots_def.len());
 
-
     let bigtable_std = solana_storage_bigtable::LedgerStorage::new(false, None, cred_path)
         .await
         .map_err(|err| format!("failed to connect to standard bigtable: {:?}", err))?;
     
-        let slots_std = bigtable_std.get_confirmed_blocks(starting_slot, limit).await?;
+    let slots_std = bigtable_std.get_confirmed_blocks(starting_slot, limit).await?;
     println!("standard bigtable {} blocks found", slots_std.len());
+
+    let missing_blocks = missing_blocks(&slots_std, &slots_def);
+    println!("{} missing blocks:{:?}", missing_blocks.len(), missing_blocks);
     
-    let mut missing_block = HashSet::new();
-    let mut slots_def = slots_def;
-    for slot in slots_std {
-        for (i, e) in slots_def.iter().enumerate() {
-            if *e > slot { //for speed up comparision
-               missing_block.insert(slot);
-               break;
-            } else if slot == *e { 
-                slots_def.remove(i);
-                break;
-            }    
-            missing_block.insert(slot);
-        }
-    }
-    println!("missing blocks:{:?}", missing_block);  
     Ok(())
 }
 
@@ -579,4 +582,25 @@ pub fn bigtable_process_command(ledger_path: &Path, matches: &ArgMatches<'_>) {
         eprintln!("{:?}", err);
         exit(1);
     });
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_missing_blocks() {
+        let slots_std =         vec![0, 37, 38, 39, 40, 41, 42, 43, 44, 45];
+        let slots_cmp =         vec![0, 38, 39, 40, 43, 44, 45, 46, 47, 48];
+        let slots_cmp_less =    vec![0, 38, 39, 40, 43, 44, 45, 46, 47];
+        let slots_ret_missing = vec![37, 41, 42];
+        let slots_ret_less =    vec![37, 41, 42];
+        assert!(missing_blocks(&vec![], &vec![]).is_empty());
+        assert!(missing_blocks(&vec![], &slots_cmp).is_empty());
+        assert!(missing_blocks(&slots_std, &vec![]).is_empty());
+        assert_eq!(missing_blocks(&slots_std, &slots_cmp), slots_ret_missing);
+        assert_eq!(missing_blocks(&slots_std, &slots_cmp), slots_ret_missing);
+        assert_eq!(missing_blocks(&slots_std, &slots_cmp_less), slots_ret_less);
+    }
 }
