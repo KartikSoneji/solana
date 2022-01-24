@@ -60,6 +60,8 @@ pub enum RpcCustomError {
     BlockStatusNotAvailableYet { slot: Slot },
     #[error("UnsupportedTransactionVersion")]
     UnsupportedTransactionVersion,
+    #[error("UnauthorizedAccess")]
+    UnauthorizedAccess,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -175,6 +177,11 @@ impl From<RpcCustomError> for Error {
             RpcCustomError::UnsupportedTransactionVersion => Self {
                 code: ErrorCode::ServerError(JSON_RPC_SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION),
                 message: "Versioned transactions are not supported".to_string(),
+                data: None,
+            },
+            RpcCustomError::UnauthorizedAccess => Self {
+                code: ErrorCode::ServerError(JSON_RPC_SERVER_ERROR_UNSUPPORTED_TRANSACTION_VERSION),
+                message: "Unauthorized access".to_string(),
                 data: None,
             },
         }

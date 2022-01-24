@@ -2396,6 +2396,7 @@ pub mod rpc_minimal {
             meta: Self::Metadata,
             pubkey_str: String,
             commitment: Option<CommitmentConfig>,
+            signature_option: Option<String>,
         ) -> Result<RpcResponse<u64>>;
 
         #[rpc(meta, name = "getEpochInfo")]
@@ -2467,9 +2468,27 @@ pub mod rpc_minimal {
             meta: Self::Metadata,
             pubkey_str: String,
             commitment: Option<CommitmentConfig>,
+            signature_option: Option<String>,
         ) -> Result<RpcResponse<u64>> {
-            debug!("get_balance rpc request received: {:?}", pubkey_str);
+            debug!(
+                "get_balance rpc request received: {:?} {:?}",
+                pubkey_str, signature_option
+            );
             let pubkey = verify_pubkey(&pubkey_str)?;
+            let pubkey_bytes = pubkey.to_bytes();
+
+            if signature_option.is_some() {
+                let message = [pubkey_bytes.to_vec(), [0].to_vec()].concat();
+                let signature = Signature::new(
+                    &bs58::decode(signature_option.unwrap())
+                    .into_vec()
+                    .unwrap(),
+                );
+                if !signature.verify(&pubkey_bytes, &message) {
+                    return Err(RpcCustomError::UnauthorizedAccess.into());
+                }
+            }
+
             Ok(meta.get_balance(&pubkey, commitment))
         }
 
