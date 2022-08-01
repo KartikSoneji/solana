@@ -50,7 +50,6 @@ pub enum Command {
 }
 
 pub struct Args {
-    pub config_file: String,
-    pub url: Option<String>,
+    pub url: String,
     pub command: Command,
 }

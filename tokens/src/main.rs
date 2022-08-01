@@ -1,5 +1,4 @@
 use {
-    solana_cli_config::{Config, CONFIG_FILE},
     solana_client::rpc_client::RpcClient,
     solana_tokens::{arg_parser::parse_args, args::Command, commands, spl_token},
     std::{
@@ -16,18 +15,7 @@ use {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let command_args = parse_args(env::args_os())?;
-    let config = if Path::new(&command_args.config_file).exists() {
-        Config::load(&command_args.config_file)?
-    } else {
-        let default_config_file = CONFIG_FILE.as_ref().unwrap();
-        if command_args.config_file != *default_config_file {
-            eprintln!("Error: config file not found");
-            process::exit(1);
-        }
-        Config::default()
-    };
-    let json_rpc_url = command_args.url.unwrap_or(config.json_rpc_url);
-    let client = RpcClient::new(json_rpc_url);
+    let client = RpcClient::new(command_args.url);
 
     let exit = Arc::new(AtomicBool::default());
     let _exit = exit.clone();

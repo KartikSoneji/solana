@@ -12,7 +12,7 @@ use {
         input_validators::{is_amount, is_valid_pubkey, is_valid_signer},
         keypair::{pubkey_from_path, signer_from_path},
     },
-    solana_cli_config::CONFIG_FILE,
+    solana_cli_config::{Config, CONFIG_FILE},
     solana_remote_wallet::remote_wallet::maybe_wallet_manager,
     solana_sdk::native_token::sol_to_lamports,
     spl_associated_token_account::get_associated_token_address,
@@ -339,7 +339,6 @@ where
                 .arg(
                     Arg::with_name("token_owner")
                         .long("owner")
-                        .required(true)
                         .takes_value(true)
                         .value_name("TOKEN_ACCOUNT_OWNER_KEYPAIR")
                         .validator(is_valid_signer)
@@ -412,13 +411,14 @@ where
 
 fn parse_distribute_tokens_args(
     matches: &ArgMatches<'_>,
+    default_signer: &String,
 ) -> Result<DistributeTokensArgs, Box<dyn Error>> {
     let mut wallet_manager = maybe_wallet_manager()?;
-    let signer_matches = ArgMatches::default(); // No default signer
 
-    let sender_keypair_str = value_t_or_exit!(matches, "sender_keypair", String);
+    let sender_keypair_str =
+        value_t!(matches, "sender_keypair", String).or_else(|| default_signer)?;
     let sender_keypair = signer_from_path(
-        &signer_matches,
+        default_signer,
         &sender_keypair_str,
         "sender",
         &mut wallet_manager,
@@ -427,7 +427,7 @@ fn parse_distribute_tokens_args(
     let fee_payer = value_t!(matches, "fee_payer", String)
         .and_then(|fee_payer_str| {
             signer_from_path(
-                &signer_matches,
+                &ArgMatches::default(),
                 &fee_payer_str,
                 "fee-payer",
                 &mut wallet_manager,
@@ -450,13 +450,15 @@ fn parse_distribute_tokens_args(
 
 fn parse_create_stake_args(
     matches: &ArgMatches<'_>,
+    default_signer: &String,
 ) -> Result<DistributeTokensArgs, Box<dyn Error>> {
     let mut wallet_manager = maybe_wallet_manager()?;
     let signer_matches = ArgMatches::default(); // No default signer
 
-    let sender_keypair_str = value_t_or_exit!(matches, "sender_keypair", String);
+    let sender_keypair_str =
+        value_t!(matches, "sender_keypair", String).or_else(|| default_signer)?;
     let sender_keypair = signer_from_path(
-        &signer_matches,
+        default_signer,
         &sender_keypair_str,
         "sender",
         &mut wallet_manager,
@@ -465,7 +467,7 @@ fn parse_create_stake_args(
     let fee_payer = value_t!(matches, "fee_payer", String)
         .and_then(|fee_payer_str| {
             signer_from_path(
-                &signer_matches,
+                &ArgMatches::default(),
                 &fee_payer_str,
                 "fee-payer",
                 &mut wallet_manager,
@@ -505,13 +507,15 @@ fn parse_create_stake_args(
 
 fn parse_distribute_stake_args(
     matches: &ArgMatches<'_>,
+    default_signer: &String,
 ) -> Result<DistributeTokensArgs, Box<dyn Error>> {
     let mut wallet_manager = maybe_wallet_manager()?;
     let signer_matches = ArgMatches::default(); // No default signer
 
-    let sender_keypair_str = value_t_or_exit!(matches, "sender_keypair", String);
+    let sender_keypair_str =
+        value_t!(matches, "sender_keypair", String).or_else(|| default_signer)?;
     let sender_keypair = signer_from_path(
-        &signer_matches,
+        &default_signer,
         &sender_keypair_str,
         "sender",
         &mut wallet_manager,
@@ -591,11 +595,11 @@ fn parse_distribute_stake_args(
 
 fn parse_distribute_spl_tokens_args(
     matches: &ArgMatches<'_>,
+    default_signer: &String,
 ) -> Result<DistributeTokensArgs, Box<dyn Error>> {
     let mut wallet_manager = maybe_wallet_manager()?;
-    let signer_matches = ArgMatches::default(); // No default signer
 
-    let token_owner_str = value_t_or_exit!(matches, "token_owner", String);
+    let token_owner_str = value_t!(matches, "token_owner", String).or_else(|| default_signer)?;
     let token_owner = signer_from_path(
         &signer_matches,
         &token_owner_str,
@@ -676,20 +680,34 @@ where
 {
     let matches = get_matches(args);
     let config_file = matches.value_of("config_file").unwrap().to_string();
-    let url = matches.value_of("url").map(|x| x.to_string());
+    let config = if Path::new(&config_file).exists() {
+        Config::load(&config_file)?
+    } else {
+        let default_config_file = CONFIG_FILE.as_ref().unwrap();
+        if config_file != *default_config_file {
+            eprintln!("Error: config file not found");
+            process::exit(1);
+        }
+        Config::default()
+    };
+    let url = matches
+        .value_of("url")
+        .and_then(|x| x.to_string())
+        .or_else(config.json_rpc_url)?;
 
+    let default_signer = config.keypair_path;
     let command = match matches.subcommand() {
         ("distribute-tokens", Some(matches)) => {
-            Command::DistributeTokens(parse_distribute_tokens_args(matches)?)
+            Command::DistributeTokens(parse_distribute_tokens_args(matches, &default_signer)?)
         }
         ("create-stake", Some(matches)) => {
-            Command::DistributeTokens(parse_create_stake_args(matches)?)
+            Command::DistributeTokens(parse_create_stake_args(matches, &default_signer)?)
         }
         ("distribute-stake", Some(matches)) => {
-            Command::DistributeTokens(parse_distribute_stake_args(matches)?)
+            Command::DistributeTokens(parse_distribute_stake_args(matches, &default_signer)?)
         }
         ("distribute-spl-tokens", Some(matches)) => {
-            Command::DistributeTokens(parse_distribute_spl_tokens_args(matches)?)
+            Command::DistributeTokens(parse_distribute_spl_tokens_args(matches, &default_signer)?)
         }
         ("balances", Some(matches)) => Command::Balances(parse_balances_args(matches)?),
         ("spl-token-balances", Some(matches)) => Command::Balances(parse_balances_args(matches)?),
@@ -701,10 +719,6 @@ where
             exit(1);
         }
     };
-    let args = Args {
-        config_file,
-        url,
-        command,
-    };
+    let args = Args { url, command };
     Ok(args)
 }
