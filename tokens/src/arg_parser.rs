@@ -6,6 +6,7 @@ use {
     clap::{
         crate_description, crate_name, value_t, value_t_or_exit, App, Arg, ArgMatches, SubCommand,
     },
+    solana_account_decoder::parse_token::spl_token_pubkey,
     solana_clap_utils::{
         input_parsers::{pubkey_of_signer, value_of},
         input_validators::{is_amount, is_valid_pubkey, is_valid_signer},
@@ -14,6 +15,7 @@ use {
     solana_cli_config::CONFIG_FILE,
     solana_remote_wallet::remote_wallet::maybe_wallet_manager,
     solana_sdk::native_token::sol_to_lamports,
+    spl_associated_token_account::get_associated_token_address,
     std::{error::Error, ffi::OsString, process::exit},
 };
 
@@ -318,11 +320,21 @@ where
                 .arg(
                     Arg::with_name("token_account_address")
                         .long("from")
-                        .required(true)
+                        .required_unless_present("token_mint_address")
                         .takes_value(true)
                         .value_name("TOKEN_ACCOUNT_ADDRESS")
                         .validator(is_valid_pubkey)
                         .help("SPL token account to send from"),
+                )
+                .arg(
+                    Arg::with_name("token_mint_address")
+                        .long("mint")
+                        .required_unless_present("token_account_address")
+                        .conflicts_with("token_account_address")
+                        .takes_value(true)
+                        .value_name("TOKEN_MINT_ADDRESS")
+                        .validator(is_valid_pubkey)
+                        .help("SPL token mint to send"),
                 )
                 .arg(
                     Arg::with_name("token_owner")
@@ -602,13 +614,24 @@ fn parse_distribute_spl_tokens_args(
         })
         .or_else(|| sender_keypair)?;
 
-    let token_account_address_str = value_t_or_exit!(matches, "token_account_address", String);
-    let token_account_address = pubkey_from_path(
-        &signer_matches,
-        &token_account_address_str,
-        "token account address",
-        &mut wallet_manager,
-    )?;
+    let token_account_address =
+        if let Ok(token_account_address_str) = value_t!(matches, "token_account_address", String) {
+            pubkey_from_path(
+                &signer_matches,
+                &token_account_address_str,
+                "token account address",
+                &mut wallet_manager,
+            )?;
+        } else {
+            let token_mint_address_str = value_t_or_exit!(matches, "token_mint_address", String);
+            let token_mint_address = pubkey_from_path(
+                &signer_matches,
+                &token_account_address_str,
+                "token mint address",
+                &mut wallet_manager,
+            )?;
+            get_associated_token_address(&token_owner, &spl_token_pubkey(&spl_token_args.mint));
+        };
 
     Ok(DistributeTokensArgs {
         input_csv: value_t_or_exit!(matches, "input_csv", String),
