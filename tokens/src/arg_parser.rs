@@ -98,11 +98,10 @@ where
                 .arg(
                     Arg::with_name("fee_payer")
                         .long("fee-payer")
-                        .required(true)
                         .takes_value(true)
                         .value_name("KEYPAIR")
                         .validator(is_valid_signer)
-                        .help("Fee payer"),
+                        .help("Fee payer, defaults to 'from'"),
                 ),
         )
         .subcommand(
@@ -169,11 +168,10 @@ where
                 .arg(
                     Arg::with_name("fee_payer")
                         .long("fee-payer")
-                        .required(true)
                         .takes_value(true)
                         .value_name("KEYPAIR")
                         .validator(is_valid_signer)
-                        .help("Fee payer"),
+                        .help("Fee payer, defaults to 'from'"),
                 ),
         )
         .subcommand(
@@ -267,11 +265,10 @@ where
                 .arg(
                     Arg::with_name("fee_payer")
                         .long("fee-payer")
-                        .required(true)
                         .takes_value(true)
                         .value_name("KEYPAIR")
                         .validator(is_valid_signer)
-                        .help("Fee payer"),
+                        .help("Fee payer, defaults to 'from'"),
                 ),
         )
         .subcommand(
@@ -339,11 +336,10 @@ where
                 .arg(
                     Arg::with_name("fee_payer")
                         .long("fee-payer")
-                        .required(true)
                         .takes_value(true)
                         .value_name("KEYPAIR")
                         .validator(is_valid_signer)
-                        .help("Fee payer"),
+                        .help("Fee payer, defaults to 'owner'"),
                 ),
         )
         .subcommand(
@@ -416,13 +412,16 @@ fn parse_distribute_tokens_args(
         &mut wallet_manager,
     )?;
 
-    let fee_payer_str = value_t_or_exit!(matches, "fee_payer", String);
-    let fee_payer = signer_from_path(
-        &signer_matches,
-        &fee_payer_str,
-        "fee-payer",
-        &mut wallet_manager,
-    )?;
+    let fee_payer = value_t!(matches, "fee_payer", String)
+        .and_then(|fee_payer_str| {
+            signer_from_path(
+                &signer_matches,
+                &fee_payer_str,
+                "fee-payer",
+                &mut wallet_manager,
+            )
+        })
+        .or_else(|| sender_keypair)?;
 
     Ok(DistributeTokensArgs {
         input_csv: value_t_or_exit!(matches, "input_csv", String),
@@ -451,13 +450,16 @@ fn parse_create_stake_args(
         &mut wallet_manager,
     )?;
 
-    let fee_payer_str = value_t_or_exit!(matches, "fee_payer", String);
-    let fee_payer = signer_from_path(
-        &signer_matches,
-        &fee_payer_str,
-        "fee-payer",
-        &mut wallet_manager,
-    )?;
+    let fee_payer = value_t!(matches, "fee_payer", String)
+        .and_then(|fee_payer_str| {
+            signer_from_path(
+                &signer_matches,
+                &fee_payer_str,
+                "fee-payer",
+                &mut wallet_manager,
+            )
+        })
+        .or_else(|| sender_keypair)?;
 
     let lockup_authority_str = value_t!(matches, "lockup_authority", String).ok();
     let lockup_authority = lockup_authority_str
@@ -503,13 +505,16 @@ fn parse_distribute_stake_args(
         &mut wallet_manager,
     )?;
 
-    let fee_payer_str = value_t_or_exit!(matches, "fee_payer", String);
-    let fee_payer = signer_from_path(
-        &signer_matches,
-        &fee_payer_str,
-        "fee-payer",
-        &mut wallet_manager,
-    )?;
+    let fee_payer = value_t!(matches, "fee_payer", String)
+        .and_then(|fee_payer_str| {
+            signer_from_path(
+                &signer_matches,
+                &fee_payer_str,
+                "fee-payer",
+                &mut wallet_manager,
+            )
+        })
+        .or_else(|| sender_keypair)?;
 
     let stake_account_address_str = value_t_or_exit!(matches, "stake_account_address", String);
     let stake_account_address = pubkey_from_path(
@@ -586,13 +591,16 @@ fn parse_distribute_spl_tokens_args(
         &mut wallet_manager,
     )?;
 
-    let fee_payer_str = value_t_or_exit!(matches, "fee_payer", String);
-    let fee_payer = signer_from_path(
-        &signer_matches,
-        &fee_payer_str,
-        "fee-payer",
-        &mut wallet_manager,
-    )?;
+    let fee_payer = value_t!(matches, "fee_payer", String)
+        .and_then(|fee_payer_str| {
+            signer_from_path(
+                &signer_matches,
+                &fee_payer_str,
+                "fee-payer",
+                &mut wallet_manager,
+            )
+        })
+        .or_else(|| sender_keypair)?;
 
     let token_account_address_str = value_t_or_exit!(matches, "token_account_address", String);
     let token_account_address = pubkey_from_path(
